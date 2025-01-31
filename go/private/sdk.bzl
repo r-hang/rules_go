@@ -227,6 +227,7 @@ def go_toolchains_single_definition(ctx, *, prefix, goos, goarch, sdk_repo, sdk_
     minor = {identifier_prefix}MINOR_VERSION,
     patch = {identifier_prefix}PATCH_VERSION,
     prerelease = {identifier_prefix}PRERELEASE_SUFFIX,
+    sdk_name = "{sdk_repo}",
     sdk_type = "{sdk_type}",
 )
 """.format(

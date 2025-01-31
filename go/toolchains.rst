@@ -79,6 +79,40 @@ The SDK version can omit the patch, or include a prerelease part, eg. ``"1"``,
 When ``go_host_sdk`` is used, ``"version"`` can be set to ``host`` to refer to the host Go SDK.
 It can also be set ``remote`` to match any non-host version.
 
+If you would like to use a specific Go SDK target, pass the flag ``--@io_bazel_rules_go//go/toolchain:sdk_name="name"``.
+This can be useful if there are several `go_download_sdk`_ / `go_host_sdk`_ / `go_local_sdk`_ / `go_wrap_sdk`_
+with the same Go SDK version, but have different experiments enabled or patches applied:
+
+.. code:: bzl
+
+    # WORKSPACE
+
+    go_download_sdk(
+      name = "go_sdk",
+      version = "1.23.5",
+    )
+
+    # select with bazel build --@io_bazel_rules_go//go/toolchain:sdk_name=go_sdk_with_rangefunc
+    go_download_sdk(
+      name = "go_sdk_with_rangefunc",
+      version = "1.23.5",
+      experiments = ["rangefunc"],
+    )
+
+    # MODULE.bazel
+
+    go_sdk.download(
+      name = "go_sdk",
+      version = "1.23.5",
+    )
+
+    # select with bazel build --@io_bazel_rules_go//go/toolchain:sdk_name=go_sdk_with_rangefunc
+    go_sdk.download(
+      name = "go_sdk_with_rangefunc",
+      version = "1.23.5",
+      experiments = ["rangefunc"],
+    )
+
 The toolchain
 ~~~~~~~~~~~~~
 
