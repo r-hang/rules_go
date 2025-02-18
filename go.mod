@@ -1,8 +1,8 @@
 module github.com/bazelbuild/rules_go
 
-go 1.22.0
-
 toolchain go1.23.6
+
+go 1.22.0
 
 require (
 	github.com/gogo/protobuf v1.3.2
@@ -19,7 +19,8 @@ require (
 
 require (
 	golang.org/x/mod v0.23.0 // indirect
+	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250106144421-5f5ef82da422 // indirect
 )
