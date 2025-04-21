@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+load("@@//rules/go:test.bzl", "uber_rules_go_testenvironment")
 load(
     "@bazel_skylib//lib:structs.bzl",
     "structs",
@@ -196,7 +197,9 @@ def _go_test_impl(ctx):
     for k, v in ctx.attr.env.items():
         env[k] = ctx.expand_location(v, ctx.attr.data)
 
-    run_environment_info = RunEnvironmentInfo(env, ctx.attr.env_inherit)
+    uber_test_env, uber_test_executioninfo = uber_rules_go_testenvironment(ctx)
+    uber_test_env.update(env)
+    run_environment_info = RunEnvironmentInfo(uber_test_env, ctx.attr.env_inherit)
 
     # Bazel only looks for coverage data if the test target has an
     # InstrumentedFilesProvider. If the provider is found and at least one
@@ -221,6 +224,7 @@ def _go_test_impl(ctx):
             dependency_attributes = ["data", "deps", "embed", "embedsrcs"],
             extensions = ["go"],
         ),
+        testing.ExecutionInfo(uber_test_executioninfo),
         run_environment_info,
     ]
 
@@ -450,7 +454,7 @@ _go_test_kwargs = {
         "_go_context_data": attr.label(default = "//:go_context_data", cfg = go_transition),
         "_testmain_additional_deps": attr.label_list(
             providers = [GoInfo],
-            default = ["//go/tools/bzltestutil"],
+            default = ["//go/tools/bzltestutil", "@org_uber_go_goleak//:go_default_library"],
             cfg = go_transition,
         ),
         # Required for Bazel to collect coverage of instrumented C/C++ binaries

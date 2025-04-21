@@ -106,6 +106,9 @@ import (
 	"testing"
 	"testing/internal/testdeps"
 
+{{if not .TestMain}}
+	"go.uber.org/goleak"
+{{end}}
 {{if ne .CoverMode ""}}
 	"github.com/bazelbuild/rules_go/go/tools/coverdata"
 {{end}}
@@ -243,13 +246,13 @@ func main() {
 	}
 
 	{{if not .TestMain}}
-	res := m.Run()
+	goleak.VerifyTestMain(m)
 	{{else}}
 	{{.TestMain}}(m)
 	{{/* See golang.org/issue/34129 and golang.org/cl/219639 */}}
 	res := int(reflect.ValueOf(m).Elem().FieldByName("exitCode").Int())
-	{{end}}
 	os.Exit(res)
+	{{end}}
 }
 `
 
