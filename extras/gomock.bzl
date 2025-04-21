@@ -22,6 +22,7 @@
 # The rules in this files are still under development. Breaking changes are planned.
 # DO NOT USE IT.
 
+load("@@//src/code.uber.internal/go/gomock/bazelgenerator:gomock.bzl", _gomock_archive = "gomock")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 load("//go/private:common.bzl", "GO_TOOLCHAIN", "GO_TOOLCHAIN_LABEL")
 load("//go/private:context.bzl", "go_context")
@@ -214,7 +215,7 @@ def gomock(name, out, library = None, source_importpath = "", source = None, int
             **kwargs
         )
     else:
-        _gomock_reflect(
+        _gomock_archive(
             name = name,
             out = out,
             library = library,
@@ -222,10 +223,7 @@ def gomock(name, out, library = None, source_importpath = "", source = None, int
             package = package,
             self_package = self_package,
             mockgen_tool = mockgen_tool,
-            mockgen_args = mockgen_args,
-            imports = imports,
             copyright_file = copyright_file,
-            mock_names = mock_names,
             **kwargs
         )
 
