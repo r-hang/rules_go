@@ -78,7 +78,7 @@ func resolvePathsInPlace(prf PathResolverFunc, paths []string) {
 	}
 }
 
-func WalkFlatPackagesFromJSON(jsonFile string, onPkg PackageFunc) error {
+func WalkFlatPackagesFromJSON(jsonFile string, overlays map[string][]byte, prf PathResolverFunc, onPkg PackageFunc) error {
 	f, err := os.Open(jsonFile)
 	if err != nil {
 		return fmt.Errorf("unable to open package JSON file: %w", err)
@@ -91,7 +91,10 @@ func WalkFlatPackagesFromJSON(jsonFile string, onPkg PackageFunc) error {
 		if err := decoder.Decode(&pkg); err != nil {
 			return fmt.Errorf("unable to decode package in %s: %w", f.Name(), err)
 		}
-
+		// // EXPERIMENT: Mutate the archive json files read to remove cgo source files.
+		if err := pkg.FilterCgoSourceFiles(prf); err != nil {
+			return fmt.Errorf("unable to filter cgo source files: %w", err)
+		}
 		onPkg(pkg)
 	}
 	return nil
@@ -110,6 +113,36 @@ func (fp *FlatPackage) ResolvePaths(prf PathResolverFunc) error {
 func (fp *FlatPackage) FilterFilesForBuildTags() {
 	fp.GoFiles = filterSourceFilesForTags(fp.GoFiles)
 	fp.CompiledGoFiles = filterSourceFilesForTags(fp.CompiledGoFiles)
+}
+
+func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
+	filtered := make([]string, 0, len(fp.CompiledGoFiles))
+	for _, file := range fp.CompiledGoFiles {
+		fset := token.NewFileSet()
+		resolvedFile := prf(file)
+		f, err := parser.ParseFile(fset, resolvedFile, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		var skip bool
+		for _, rawImport := range f.Imports {
+			imp, err := strconv.Unquote(rawImport.Path.Value)
+			if err != nil {
+				continue
+			}
+			if imp == "C" {
+				skip = true
+				continue
+			}
+		}
+		if skip {
+			fmt.Fprintf(os.Stderr, "Skipping CGO file: %s\n", resolvedFile)
+		} else {
+			filtered = append(filtered, file)
+		}
+	}
+	fp.CompiledGoFiles = filtered
+	return nil
 }
 
 func (fp *FlatPackage) filterTestSuffix(files []string) (err error, testFiles []string, xTestFiles, nonTestFiles []string) {
@@ -131,6 +164,7 @@ func (fp *FlatPackage) filterTestSuffix(files []string) (err error, testFiles []
 	}
 	return
 }
+
 
 func (fp *FlatPackage) MoveTestFiles() *FlatPackage {
 	err, tgf, xtgf, gf := fp.filterTestSuffix(fp.GoFiles)
@@ -167,6 +201,7 @@ func (fp *FlatPackage) MoveTestFiles() *FlatPackage {
 		Errors:          fp.Errors,
 		GoFiles:         append([]string{}, xtgf...),
 		CompiledGoFiles: append([]string{}, cxtgf...),
+		// TODO(rhang): Add a cgo file like the go list response
 		OtherFiles:      fp.OtherFiles,
 		ExportFile:      fp.ExportFile,
 		Standard:        fp.Standard,

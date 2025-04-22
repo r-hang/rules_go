@@ -202,6 +202,10 @@ def emit_compilepkg(
         compile_args.add("-pgoprofile", go.mode.pgoprofile)
         inputs_direct.append(go.mode.pgoprofile)
 
+    for output in outputs:
+        if output.path.find("sqlite") != -1:
+            print("---- compilepkg outputs ---- \n", output)
+
     go.actions.run(
         inputs = depset(inputs_direct, transitive = inputs_transitive),
         outputs = outputs,

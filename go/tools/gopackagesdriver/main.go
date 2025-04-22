@@ -102,6 +102,11 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	if err != nil {
 		return fmt.Errorf("unable to build JSON files: %w", err)
 	}
+	for _, f := range jsonFiles {
+		if strings.Contains(f, "sqlite") {
+			fmt.Fprintln(os.Stderr, f)
+		}
+	}
 
 	driver, err := NewJSONPackagesDriver(jsonFiles, bazelJsonBuilder.PathResolver(), bazel.version, request.Overlay)
 	if err != nil {
@@ -113,6 +118,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 	// include more than the only file being specified.
 	resp := driver.GetResponse(labels)
 	data, err := json.Marshal(resp)
+	// fmt.Fprintln(os.Stderr, string(data))
 	if err != nil {
 		return fmt.Errorf("unable to marshal response: %v", err)
 	}

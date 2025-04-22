@@ -53,6 +53,10 @@ def file_path(f):
     return paths.join(prefix, f.path)
 
 def _go_archive_to_pkg(archive):
+    # TODO(rhang): we need to be smarter about CompiledGoFiles and Files here
+    # TODO(rhang): Filter out Cgo source files from CompiledGoFiles by parsing imports
+    # maybe we do this in gocode after the aspect.
+    # TODO(rhang): Include Cgo post processed files, they need to be persisted somewhere
     go_files = [
         file_path(src)
         for src in archive.data.srcs
@@ -116,7 +120,8 @@ def _go_pkg_info_aspect_impl(target, ctx):
         export_files.append(archive.data.export_file)
         pkg = _go_archive_to_pkg(archive)
         pkg_json_files.append(make_pkg_json(ctx, archive.data.name, pkg))
-
+        # if pkg.PkgPath.find("sqlite") != -1:
+        #   print("---- bazel aspect archive reader ---- \n", archive)
         if ctx.rule.kind == "go_test":
             for dep_archive in archive.direct:
                 # find the archive containing the test sources

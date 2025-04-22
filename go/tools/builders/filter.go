@@ -145,6 +145,9 @@ func applyTestFilter(testFilter string, srcs *archiveSrcs) error {
 // readFileInfo applies build constraints to an input file and returns whether
 // it should be compiled.
 func readFileInfo(bctx build.Context, input string) (fileInfo, error) {
+	if strings.Contains(input, "sqlite") {
+	fmt.Fprintln(os.Stderr, "---- readFileInfo ---- \n", input)
+	}
 	fi := fileInfo{filename: input}
 	if ext := filepath.Ext(input); ext == ".C" {
 		fi.ext = cxxExt
