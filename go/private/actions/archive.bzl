@@ -9,7 +9,7 @@
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# See the License for the specific languaggge governing permissions and
 # limitations under the License.
 
 load(
@@ -83,7 +83,9 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
     importmap = "main" if source.is_main else source.importmap
     importpath, _ = effective_importpath_pkgpath(source)
 
+    cgo_generated_dir = None
     if source.cgo and not go.mode.pure:
+        cgo_generated_dir = go.declare_directory(go, path = out_lib.basename + ".cgo")
         # TODO(jayconrod): do we need to do full Bourne tokenization here?
         cppopts = [f for fs in source.cppopts for f in fs.split(" ")]
         copts = [f for fs in source.copts for f in fs.split(" ")]
@@ -121,6 +123,7 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
             gc_goopts = source.gc_goopts,
             cgo = True,
             cgo_inputs = cgo.inputs,
+            cgo_generated_dir = cgo_generated_dir,
             cppopts = cgo.cppopts,
             copts = cgo.copts,
             cxxopts = cgo.cxxopts,
@@ -169,6 +172,7 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
         importpath_aliases = source.importpath_aliases,
         pathtype = source.pathtype,
         srcs = tuple(source.srcs),
+        cgo_generated_dir = cgo_generated_dir,
         _cover = source.cover,
         _embedsrcs = tuple(source.embedsrcs),
         _x_defs = tuple(source.x_defs.items()),

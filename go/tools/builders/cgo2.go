@@ -33,7 +33,6 @@ import (
 
 // cgo2 processes a set of mixed source files with cgo.
 func cgo2(goenv *env, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, sSrcs, hSrcs []string, packagePath, packageName string, cc string, cppFlags, cFlags, cxxFlags, objcFlags, objcxxFlags, ldFlags []string, cgoExportHPath string, cgoGoSrcsPath string) (srcDir string, allGoSrcs, cObjs []string, err error) {
-	fmt.Fprintln(os.Stderr, "cgo 2 is called ------------")
 	// Report an error if the C/C++ toolchain wasn't configured.
 	if cc == "" {
 		err := cgoError(cgoSrcs[:])
@@ -141,7 +140,7 @@ func cgo2(goenv *env, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, sSr
 	if err != nil {
 		return "", nil, nil, err
 	}
-	fmt.Fprintln(os.Stderr, "---- cgo2 ---- \n", srcDir, workDir, execRoot)
+	fmt.Fprintln(os.Stderr, "---- cgo2 ---- \n", srcDir, workDir, execRoot, cgoGoSrcsPath)
 	// Trim the execroot from the //line comments emitted by cgo.
 	args := goenv.goTool("cgo", "-srcdir", srcDir, "-objdir", workDir, "-trimpath", execRoot)
 	if packagePath != "" {

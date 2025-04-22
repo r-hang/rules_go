@@ -59,6 +59,7 @@ def emit_compilepkg(
         archives = [],
         cgo = False,
         cgo_inputs = depset(),
+        cgo_generated_dir = None,
         cppopts = [],
         copts = [],
         cxxopts = [],
@@ -178,8 +179,10 @@ def emit_compilepkg(
         execution_requirements = SUPPORTS_PATH_MAPPING_REQUIREMENT
     cgo_go_srcs_for_nogo = None
     if cgo:
-        if nogo:
-            cgo_go_srcs_for_nogo = go.declare_directory(go, path = out_lib.basename + ".cgo")
+        if cgo_generated_dir:
+            print("---- add cgo_generated_dir ---- \n", cgo_generated_dir)
+            # cgo_go_srcs_for_nogo = go.declare_directory(go, path = out_lib.basename + ".cgo")
+            cgo_go_srcs_for_nogo = cgo_generated_dir
             outputs.append(cgo_go_srcs_for_nogo)
             compile_args.add("-cgo_go_srcs", cgo_go_srcs_for_nogo.path)
         inputs_transitive.append(cgo_inputs)
