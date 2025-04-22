@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"io"
 	"os"
 	"strconv"
@@ -61,6 +62,7 @@ type FlatPackage struct {
 	Errors          []FlatPackagesError `json:",omitempty"`
 	GoFiles         []string            `json:",omitempty"`
 	CompiledGoFiles []string            `json:",omitempty"`
+	CgoGenerated    string              `json:",omitempty"`
 	OtherFiles      []string            `json:",omitempty"`
 	ExportFile      string              `json:",omitempty"`
 	Imports         map[string]string   `json:",omitempty"`
@@ -117,6 +119,7 @@ func (fp *FlatPackage) FilterFilesForBuildTags() {
 
 func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
 	filtered := make([]string, 0, len(fp.CompiledGoFiles))
+	var cgoSourceFiles []string
 	for _, file := range fp.CompiledGoFiles {
 		fset := token.NewFileSet()
 		resolvedFile := prf(file)
@@ -137,11 +140,35 @@ func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
 		}
 		if skip {
 			fmt.Fprintf(os.Stderr, "Skipping CGO file: %s\n", resolvedFile)
+			cgoSourceFiles = append(cgoSourceFiles, file)
 		} else {
 			filtered = append(filtered, file)
 		}
 	}
 	fp.CompiledGoFiles = filtered
+	if fp.CgoGenerated != "" {
+		var cgoGeneratedFiles []string
+		// TODO(rhang): Investigate missing cgo files for certain packages like x/sys/unix
+		if _, err := os.Stat(filepath.Join("/home/user/go-code", fp.CgoGenerated, "_cgo_gotypes.go")); err != nil && os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "---- missing cgo generated files ---- \n%s\n", filepath.Join("/home/user/go-code",fp.CgoGenerated, "_cgo_gotypes.go"))
+			return nil
+		}
+		cgoGeneratedFiles = append(cgoGeneratedFiles, filepath.Join("/home/user/go-code", fp.CgoGenerated, "_cgo_gotypes.go"))
+		cgoGeneratedFiles = append(cgoGeneratedFiles, filepath.Join("/home/user/go-code", fp.CgoGenerated, "_cgo_imports.go"))
+		for _, csf := range cgoSourceFiles {
+			name := strings.TrimSuffix(filepath.Base(csf), ".go")
+			name = name + ".cgo1.go"
+			path := filepath.Join("/home/user/go-code", fp.CgoGenerated, name)
+			fmt.Fprintf(os.Stderr, "---- cgo generated file ---- \n%s\n", path)
+			if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+				continue
+			}else {
+				cgoGeneratedFiles = append(cgoGeneratedFiles, path)
+			}
+		}
+		fp.CompiledGoFiles = append(fp.CompiledGoFiles, cgoGeneratedFiles...)
+		fmt.Fprintf(os.Stderr, "---- fp.CompiledGoFiles ---- \n%v\n", cgoGeneratedFiles)
+	}
 	return nil
 }
 
@@ -230,6 +257,7 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		if content, ok := overlays[file]; ok {
 			overlayReader = bytes.NewReader(content)
 		}
+		// everything passed here needs to be an ABS path
 		f, err := parser.ParseFile(fset, file, overlayReader, parser.ImportsOnly)
 		if err != nil {
 			return err

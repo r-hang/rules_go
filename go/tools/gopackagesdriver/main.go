@@ -108,6 +108,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		}
 	}
 
+	fmt.Fprintf(os.Stderr, " ----- request overlay: %v\n", request.Overlay)
 	driver, err := NewJSONPackagesDriver(jsonFiles, bazelJsonBuilder.PathResolver(), bazel.version, request.Overlay)
 	if err != nil {
 		return fmt.Errorf("unable to load JSON files: %w", err)
