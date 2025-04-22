@@ -62,6 +62,8 @@ def _go_archive_to_pkg(archive):
         for src in archive.data.srcs
         if src.path.endswith(".go")
     ]
+    if archive.data.importpath.find("sqlite") != -1:
+        print("---- go_archive_to_pkg ---- \n", archive.data.cgo_generated_dir)
     return struct(
         ID = str(archive.data.label),
         PkgPath = archive.data.importpath,
