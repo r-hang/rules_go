@@ -51,6 +51,7 @@ func (pr *PackageRegistry) ResolvePaths(prf PathResolverFunc) error {
 	for _, pkg := range pr.packagesByID {
 		pkg.ResolvePaths(prf)
 		pkg.FilterFilesForBuildTags()
+		pkg.FilterCgoSourceFiles(prf)
 	}
 	return nil
 }

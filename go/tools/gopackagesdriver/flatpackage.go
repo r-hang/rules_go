@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"path/filepath"
 	"io"
 	"os"
 	"strconv"
@@ -61,6 +62,7 @@ type FlatPackage struct {
 	Errors          []FlatPackagesError `json:",omitempty"`
 	GoFiles         []string            `json:",omitempty"`
 	CompiledGoFiles []string            `json:",omitempty"`
+	CgoGenerated    string              `json:",omitempty"`
 	OtherFiles      []string            `json:",omitempty"`
 	ExportFile      string              `json:",omitempty"`
 	Imports         map[string]string   `json:",omitempty"`
@@ -78,7 +80,7 @@ func resolvePathsInPlace(prf PathResolverFunc, paths []string) {
 	}
 }
 
-func WalkFlatPackagesFromJSON(jsonFile string, onPkg PackageFunc) error {
+func WalkFlatPackagesFromJSON(jsonFile string, prf PathResolverFunc, onPkg PackageFunc) error {
 	f, err := os.Open(jsonFile)
 	if err != nil {
 		return fmt.Errorf("unable to open package JSON file: %w", err)
@@ -91,7 +93,9 @@ func WalkFlatPackagesFromJSON(jsonFile string, onPkg PackageFunc) error {
 		if err := decoder.Decode(&pkg); err != nil {
 			return fmt.Errorf("unable to decode package in %s: %w", f.Name(), err)
 		}
-
+		if err := pkg.FilterCgoSourceFiles(prf); err != nil {
+			return fmt.Errorf("unable to filter cgo source files: %w", err)
+		}
 		onPkg(pkg)
 	}
 	return nil
@@ -110,6 +114,63 @@ func (fp *FlatPackage) ResolvePaths(prf PathResolverFunc) error {
 func (fp *FlatPackage) FilterFilesForBuildTags() {
 	fp.GoFiles = filterSourceFilesForTags(fp.GoFiles)
 	fp.CompiledGoFiles = filterSourceFilesForTags(fp.CompiledGoFiles)
+}
+
+func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
+	filtered := make([]string, 0, len(fp.CompiledGoFiles))
+	var cgoSourceFiles []string
+	for _, file := range fp.CompiledGoFiles {
+		fset := token.NewFileSet()
+		resolvedFile := prf(file)
+		f, err := parser.ParseFile(fset, resolvedFile, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		var skip bool
+		for _, rawImport := range f.Imports {
+			imp, err := strconv.Unquote(rawImport.Path.Value)
+			if err != nil {
+				continue
+			}
+			if imp == "C" {
+				skip = true
+				continue
+			}
+		}
+		if skip {
+			// Skip Cgo preprocessed files.
+			cgoSourceFiles = append(cgoSourceFiles, file)
+		} else {
+			filtered = append(filtered, file)
+		}
+	}
+	fp.CompiledGoFiles = filtered
+	if fp.CgoGenerated != "" {
+		var cgoGeneratedFiles []string
+		path := prf(filepath.Join(fp.CgoGenerated, "_cgo_gotypes.go"))
+		if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+			// unable to filter cgo source files: cgo generated file /home/user/.cache/pkgdrv/0ddf1c72b811bee41d29991c732306ef72553747/execroot/__main__/bazel-out/k8-fastbuild/bin/external/org_golang_x_sys/unix/unix_/unix.a.cgo/_cgo_gotypes.go does not exist>>
+			// return fmt.Errorf("cgo generated file %s does not exist", path)
+			return nil
+		 }
+		cgoGeneratedFiles = append(cgoGeneratedFiles, filepath.Join(fp.CgoGenerated, "_cgo_gotypes.go"))
+		cgoGeneratedFiles = append(cgoGeneratedFiles, filepath.Join(fp.CgoGenerated, "_cgo_imports.go"))
+		for _, csf := range cgoSourceFiles {
+			name := strings.TrimSuffix(filepath.Base(csf), ".go")
+			name = name + ".cgo1.go"
+			path := prf(filepath.Join(fp.CgoGenerated, name))
+			if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+				// return fmt.Errorf( "cgo generated file %s does not exist", path)
+				// cgo generated file /home/user/.cache/pkgdrv/0ddf1c72b811bee41d29991c732306ef72553747/execroot/__main__/bazel-out/k8-fastbuild/bin/external/com_github_mattn_go_sqlite3/go-sqlite3_/go-sqlite3.a.cgo/sqlite3_solaris.cgo1.go does not exist>>
+				continue
+			} else {
+				cgoGeneratedFiles = append(cgoGeneratedFiles, path)
+			}
+		}
+		resolvePathsInPlace(prf, cgoGeneratedFiles)
+		fp.CompiledGoFiles = append(fp.CompiledGoFiles, cgoGeneratedFiles...)
+	}
+	return nil
 }
 
 func (fp *FlatPackage) filterTestSuffix(files []string) (err error, testFiles []string, xTestFiles, nonTestFiles []string) {

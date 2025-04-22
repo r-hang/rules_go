@@ -58,12 +58,16 @@ def _go_archive_to_pkg(archive):
         for src in archive.data.srcs
         if src.path.endswith(".go")
     ]
+    cgo_generated_dir = ""
+    if archive.data.cgo_generated_dir:
+        cgo_generated_dir = file_path(archive.data.cgo_generated_dir)
     return struct(
         ID = str(archive.data.label),
         PkgPath = archive.data.importpath,
         ExportFile = file_path(archive.data.export_file),
         GoFiles = go_files,
         CompiledGoFiles = go_files,
+        CgoGenerated = cgo_generated_dir,
         OtherFiles = [
             file_path(src)
             for src in archive.data.srcs
@@ -113,6 +117,8 @@ def _go_pkg_info_aspect_impl(target, ctx):
     if GoArchive in target:
         archive = target[GoArchive]
         compiled_go_files.extend(archive.source.srcs)
+        if archive.data.cgo_generated_dir:
+            compiled_go_files.append(archive.data.cgo_generated_dir)
         export_files.append(archive.data.export_file)
         pkg = _go_archive_to_pkg(archive)
         pkg_json_files.append(make_pkg_json(ctx, archive.data.name, pkg))
