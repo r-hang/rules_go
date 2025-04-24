@@ -147,6 +147,7 @@ func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
 	}
 	fp.CompiledGoFiles = filtered
 	if fp.CgoGenerated != "" {
+		fmt.Fprintf(os.Stderr, "has cgo generated dir: %q \n", fp.CgoGenerated)
 		var cgoGeneratedFiles []string
 		// TODO(rhang): Investigate missing cgo files for certain packages like x/sys/unix
 		if _, err := os.Stat(filepath.Join("/home/user/go-code", fp.CgoGenerated, "_cgo_gotypes.go")); err != nil && os.IsNotExist(err) {
@@ -167,7 +168,7 @@ func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
 			}
 		}
 		fp.CompiledGoFiles = append(fp.CompiledGoFiles, cgoGeneratedFiles...)
-		fmt.Fprintf(os.Stderr, "---- fp.CompiledGoFiles ---- \n%v\n", cgoGeneratedFiles)
+		fmt.Fprintf(os.Stderr, "---- added cgo generated files ---- \n%v\n", cgoGeneratedFiles)
 	}
 	return nil
 }

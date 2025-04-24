@@ -83,9 +83,13 @@ def emit_archive(go, source = None, _recompile_suffix = "", recompile_internal_d
     importmap = "main" if source.is_main else source.importmap
     importpath, _ = effective_importpath_pkgpath(source)
 
+    # print(source.importpath)
+    if source.importpath.find("go-uicu/datetime") != -1:
+        print("---- source ---- \n", source.importpath, source.name, source.cgo, go.mode.pure)
     cgo_generated_dir = None
     if source.cgo and not go.mode.pure:
         cgo_generated_dir = go.declare_directory(go, path = out_lib.basename + ".cgo")
+        print("---- cgo_generated_dir name ---- \n", cgo_generated_dir)
         # TODO(jayconrod): do we need to do full Bourne tokenization here?
         cppopts = [f for fs in source.cppopts for f in fs.split(" ")]
         copts = [f for fs in source.copts for f in fs.split(" ")]

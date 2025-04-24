@@ -62,8 +62,10 @@ def _go_archive_to_pkg(archive):
         for src in archive.data.srcs
         if src.path.endswith(".go")
     ]
-    # if archive.data.importpath.find("sqlite") != -1:
-    #   print("---- go_archive_to_pkg ---- \n", archive.data.cgo_generated_dir)
+    if archive.data.importpath.find("go-uicu/datetime") != -1:
+        print("---- go_archive_to_pkg ---- \n", archive.data.cgo_generated_dir)
+        #
+        # print(archive.data)
     cgo_generated_dir = ""
     if archive.data.cgo_generated_dir:
         cgo_generated_dir = archive.data.cgo_generated_dir.path

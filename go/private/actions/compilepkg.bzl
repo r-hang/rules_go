@@ -180,8 +180,7 @@ def emit_compilepkg(
     cgo_go_srcs_for_nogo = None
     if cgo:
         if cgo_generated_dir:
-            # print("---- add cgo_generated_dir ---- \n", cgo_generated_dir)
-            # cgo_go_srcs_for_nogo = go.declare_directory(go, path = out_lib.basename + ".cgo")
+            print("---- specified cgo_generated_dir ---- \n", cgo_generated_dir)
             cgo_go_srcs_for_nogo = cgo_generated_dir
             outputs.append(cgo_go_srcs_for_nogo)
             compile_args.add("-cgo_go_srcs", cgo_go_srcs_for_nogo.path)

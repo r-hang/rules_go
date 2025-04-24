@@ -140,7 +140,7 @@ func cgo2(goenv *env, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, sSr
 	if err != nil {
 		return "", nil, nil, err
 	}
-	fmt.Fprintln(os.Stderr, "---- cgo2 ---- \n", srcDir, workDir, execRoot, cgoGoSrcsPath)
+
 	// Trim the execroot from the //line comments emitted by cgo.
 	args := goenv.goTool("cgo", "-srcdir", srcDir, "-objdir", workDir, "-trimpath", execRoot)
 	if packagePath != "" {
@@ -243,6 +243,9 @@ func cgo2(goenv *env, goSrcs, cgoSrcs, cSrcs, cxxSrcs, objcSrcs, objcxxSrcs, sSr
 	genGoSrcs = append(genGoSrcs, cgoImportsGo)
 	if cgoGoSrcsPath != "" {
 		for _, src := range genGoSrcs {
+			if strings.Contains(src, "go-uicu") {
+				fmt.Fprintf(os.Stderr, "copy cgo gen file %q to %q", src, filepath.Join(cgoGoSrcsPath, filepath.Base(src)))
+			}
 			if err := copyFile(src, filepath.Join(cgoGoSrcsPath, filepath.Base(src))); err != nil {
 				return "", nil, nil, err
 			}
