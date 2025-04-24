@@ -103,7 +103,7 @@ func run(ctx context.Context, in io.Reader, out io.Writer, args []string) error 
 		return fmt.Errorf("unable to build JSON files: %w", err)
 	}
 	for _, f := range jsonFiles {
-		if strings.Contains(f, "sqlite") {
+		if strings.Contains(f, "ztsd") || strings.Contains(f, "h3") {
 			fmt.Fprintln(os.Stderr, f)
 		}
 	}

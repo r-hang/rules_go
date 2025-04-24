@@ -139,7 +139,7 @@ func (fp *FlatPackage) FilterCgoSourceFiles(prf PathResolverFunc) error {
 			}
 		}
 		if skip {
-			fmt.Fprintf(os.Stderr, "Skipping CGO file: %s\n", resolvedFile)
+			// fmt.Fprintf(os.Stderr, "Skipping CGO file: %s\n", resolvedFile)
 			cgoSourceFiles = append(cgoSourceFiles, file)
 		} else {
 			filtered = append(filtered, file)
@@ -272,6 +272,7 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 			if err != nil {
 				continue
 			}
+			// Note: CompiledGoFiles should not contain import "C"
 			// We don't handle CGo for now
 			if imp == "C" {
 				continue
@@ -286,6 +287,23 @@ func (fp *FlatPackage) ResolveImports(resolve ResolvePkgFunc, overlays map[strin
 		}
 	}
 
+	if fp.PkgPath == "github.com/uber/h3-go" {
+		/*
+		view after shape 2 viewLen 1
+		view because panic  map[github.com/uber/h3-go:package h3 ("github.com/uber/h3-go") strconv:package strconv ("strconv")]
+		2025/04/24 15:59:13 golang.org/x/tools/go/packages: unexpected new packages during load of github.com/uber/h3-go
+		*/
+		fp.Imports["strconv"] = "@io_bazel_rules_go//stdlib:strconv"
+	} else if fp.PkgPath == "github.com/DataDog/zstd" {
+		/*
+		view because panic  map[github.com/DataDog/zstd:package zstd ("github.com/DataDog/zstd") internal/runtime/sys:package sys ("internal/runtime/sys") io:package io ("io") runtime/cgo:package cgo ("runtime/cgo")]
+		2025/04/24 16:02:02 golang.org/x/tools/go/packages: unexpected new packages during load of github.com/DataDog/zstd
+		panic: golang.org/x/tools/go/packages: unexpected new packages during load of github.com/DataDog/zstd
+		*/
+		fp.Imports["io"] = "@io_bazel_rules_go//stdlib:io"
+		fp.Imports["runtime/cgo"] = "@io_bazel_rules_go//stdlib:runtime/cgo"
+		fp.Imports["internal/runtime/sys"] = "@io_bazel_rules_go//stdlib:internal/runtime/sys"
+	}
 	return nil
 }
 

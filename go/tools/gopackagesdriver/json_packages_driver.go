@@ -16,7 +16,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"runtime"
+	// "strings"
 )
 
 type JSONPackagesDriver struct {
@@ -40,6 +42,12 @@ func NewJSONPackagesDriver(jsonFiles []string, prf PathResolverFunc, bazelVersio
 		return nil, fmt.Errorf("unable to resolve paths: %w", err)
 	}
 
+	fmt.Fprintf(os.Stderr, " --- overlay check ---")
+	for k, v := range overlays {
+		// if strings.Contains(k, "h3") || strings.Contains(k, "ztsd") {
+		fmt.Fprintf(os.Stderr, "overlay %s: %s\n", k, string(v))
+		// }
+	}
 	if err := jpd.registry.ResolveImports(overlays); err != nil {
 		return nil, fmt.Errorf("unable to resolve imports: %w", err)
 	}
