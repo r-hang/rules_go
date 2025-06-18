@@ -70,6 +70,7 @@ type Cases struct {
 	Examples    []Example
 	TestMain    string
 	CoverMode   string
+	Covered     string
 	CoverFormat string
 	Pkgname     string
 }
@@ -107,7 +108,7 @@ import (
 	"testing/internal/testdeps"
 
 {{if ne .CoverMode ""}}
-	"github.com/bazelbuild/rules_go/go/tools/coverdata"
+	"internal/coverage/cfile"
 {{end}}
 
 {{range $p := .Imports}}
@@ -177,6 +178,14 @@ func main() {
 		os.Exit(exitCode)
 	}
 
+	{{if ne .CoverMode ""}}
+		testdeps.CoverMode = "{{ .CoverMode }}"
+		testdeps.Covered = "{{ .Covered }}"
+		testdeps.CoverSnapshotFunc = cfile.Snapshot
+		testdeps.CoverProcessTestDirFunc = cfile.ProcessCoverTestDir
+		testdeps.CoverMarkProfileEmittedFunc = cfile.MarkProfileEmitted
+	{{end}}
+
 	testDeps :=
   {{if eq .CoverFormat "lcov"}}
 		bzltestutil.LcovTestDeps{TestDeps: testdeps.TestDeps{}}
@@ -219,12 +228,6 @@ func main() {
 	panicOnExit0Flag.Set("true")
 {{end}}
 {{if ne .CoverMode ""}}
-	if len(coverdata.Counters) > 0 {
-		testing.RegisterCover(testing.Cover{
-			Mode: "{{ .CoverMode }}",
-			Counters: coverdata.Counters,
-			Blocks: coverdata.Blocks,
-		})
 
 		if coverageDat, ok := os.LookupEnv("COVERAGE_OUTPUT_FILE"); ok {
 			{{if eq .CoverFormat "lcov"}}
@@ -233,7 +236,6 @@ func main() {
 			flag.Lookup("test.coverprofile").Value.Set(coverageDat)
 			{{end}}
 		}
-	}
 	{{end}}
 
 	testTimeout := os.Getenv("TEST_TIMEOUT")

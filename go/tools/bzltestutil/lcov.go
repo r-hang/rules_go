@@ -122,7 +122,9 @@ func convertCoverToLcov(coverReader io.Reader, lcovWriter io.Writer) error {
 }
 
 func emitLcovLines(lcov io.StringWriter, path string, lineCounts map[uint32]uint32) error {
-	_, err := lcov.WriteString(fmt.Sprintf("SF:%s\n", path))
+	// in lcov coverage code mode, the file paths need to be relative to the execution root
+	// 2.0 coverage skips that path adjustment path.
+	_, err := lcov.WriteString(fmt.Sprintf("SF:%s\n", "src/" + path))
 	if err != nil {
 		return err
 	}
