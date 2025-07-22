@@ -17,11 +17,10 @@
 package main
 
 import (
-	"errors"
+	"crypto/sha256"
 	"flag"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -243,7 +242,8 @@ func compileArchive(
 	goSrcsNogo := append([]string{}, goSrcs...)
 	cgoSrcsNogo := append([]string{}, cgoSrcs...)
 
-	// Instrument source files for coverage.
+	// Instrument source files in a package for coverage.
+	var coverageCfg string
 	if coverMode != "" {
 		relCoverPath := make(map[string]string)
 		for _, s := range coverSrcs {
@@ -254,26 +254,15 @@ func compileArchive(
 		if cgoEnabled {
 			combined = append(combined, cgoSrcs...)
 		}
+
+		var (
+			coverIn []string
+			coverOut []string
+		)
 		for i, origSrc := range combined {
 			if _, ok := relCoverPath[origSrc]; !ok {
 				continue
 			}
-
-			var srcName string
-			switch coverFormat {
-			case "go_cover":
-				srcName = origSrc
-				if importPath != "" {
-					srcName = path.Join(importPath, filepath.Base(origSrc))
-				}
-			case "lcov":
-				// Bazel merges lcov reports across languages and thus assumes
-				// that the source file paths are relative to the exec root.
-				srcName = relCoverPath[origSrc]
-			default:
-				return fmt.Errorf("invalid value for -cover_format: %q", coverFormat)
-			}
-
 			stem := filepath.Base(origSrc)
 			if ext := filepath.Ext(stem); ext != "" {
 				stem = stem[:len(stem)-len(ext)]
@@ -281,9 +270,9 @@ func compileArchive(
 			coverVar := fmt.Sprintf("Cover_%s_%d_%s", sanitizePathForIdentifier(importPath), i, sanitizePathForIdentifier(stem))
 			coverVar = strings.ReplaceAll(coverVar, "_", "Z")
 			coverSrc := filepath.Join(workDir, fmt.Sprintf("cover_%d.go", i))
-			if err := instrumentForCoverage(goenv, origSrc, srcName, coverVar, coverMode, coverSrc); err != nil {
-				return err
-			}
+
+			coverIn = append(coverIn, origSrc)
+			coverOut = append(coverOut, coverSrc)
 
 			if i < len(goSrcs) {
 				goSrcs[i] = coverSrc
@@ -291,6 +280,16 @@ func compileArchive(
 			}
 
 			cgoSrcs[i-len(goSrcs)] = coverSrc
+		}
+
+		// Match work
+		sum := sha256.Sum256([]byte(importPath))
+		coverVar := fmt.Sprintf("goCover_%x_", sum[:6])
+		coverageCfg = workDir + "pkgcfg.txt"
+		coverOut, err := instrumentForCoverage(goenv, importPath, packageName, coverIn, coverVar, coverMode, coverOut, workDir)
+		goSrcs = append(goSrcs, coverOut[0])
+		if err != nil {
+			return err
 		}
 	}
 
@@ -389,7 +388,7 @@ func compileArchive(
 	}
 
 	// Compile the filtered .go files.
-	if err := compileGo(goenv, goSrcs, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath, gcFlags, pgoprofile, outLinkObj, outInterfacePath); err != nil {
+	if err := compileGo(goenv, goSrcs, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath, gcFlags, pgoprofile, outLinkObj, outInterfacePath, coverageCfg); err != nil {
 		return err
 	}
 
@@ -453,18 +452,7 @@ func checkImportsAndBuildCfg(goenv *env, importPath string, srcs archiveSrcs, de
 		if coverMode == "atomic" {
 			imports["sync/atomic"] = nil
 		}
-		const coverdataPath = "github.com/bazelbuild/rules_go/go/tools/coverdata"
-		var coverdata *archive
-		for i := range deps {
-			if deps[i].importPath == coverdataPath {
-				coverdata = &deps[i]
-				break
-			}
-		}
-		if coverdata == nil {
-			return "", errors.New("coverage requested but coverdata dependency not provided")
-		}
-		imports[coverdataPath] = coverdata
+		imports["runtime/coverage"] = nil
 	}
 
 	// Build an importcfg file for the compiler.
@@ -475,7 +463,7 @@ func checkImportsAndBuildCfg(goenv *env, importPath string, srcs archiveSrcs, de
 	return importcfgPath, nil
 }
 
-func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath string, gcFlags []string, pgoprofile, outLinkobjPath, outInterfacePath string) error {
+func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPath, asmHdrPath, symabisPath string, gcFlags []string, pgoprofile, outLinkobjPath, outInterfacePath, coverageCfg string) error {
 	args := goenv.goTool("compile")
 	args = append(args, "-p", packagePath, "-importcfg", importcfgPath, "-pack")
 	if embedcfgPath != "" {
@@ -489,6 +477,9 @@ func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPa
 	}
 	if pgoprofile != "" {
 		args = append(args, "-pgoprofile", pgoprofile)
+	}
+	if coverageCfg != "" {
+		args = append(args, "-coveragecfg", coverageCfg)
 	}
 	args = append(args, gcFlags...)
 	args = append(args, "-o", outInterfacePath)

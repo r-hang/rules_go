@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -125,7 +126,8 @@ func convertCoverToLcov(coverReader io.Reader, lcovWriter io.Writer) error {
 }
 
 func emitLcovLines(lcov io.StringWriter, path string, lineCounts map[uint32]uint32) error {
-	_, err := lcov.WriteString(fmt.Sprintf("SF:%s\n", path))
+	// Add src/ prefix as lcov expects execution root relative paths.
+	_, err := lcov.WriteString(fmt.Sprintf("SF:%s\n", filepath.Join("src", path)))
 	if err != nil {
 		return err
 	}

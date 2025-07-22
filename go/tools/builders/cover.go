@@ -15,96 +15,85 @@
 package main
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
-	"go/parser"
-	"go/token"
 	"io/ioutil"
 	"os"
-	"strconv"
+	"path/filepath"
+	"strings"
 )
 
-// instrumentForCoverage runs "go tool cover" on a source file to produce
-// a coverage-instrumented version of the file. It also registers the file
-// with the coverdata package.
-func instrumentForCoverage(goenv *env, srcPath, srcName, coverVar, mode, outPath string) error {
-	goargs := goenv.goTool("cover", "-var", coverVar, "-mode", mode, "-o", outPath, srcPath)
+func instrumentForCoverage(goenv *env, importPath string, pkgName string, infiles []string, coverVar string, coverMode string, outfiles []string, workDir string) ([]string, error) {
+	pkgcfg := workDir + "pkgcfg.txt"
+	covoutputs := workDir + "coveroutfiles.txt"
+	odir := filepath.Dir(outfiles[0])
+	cv := filepath.Join(odir, "covervars.go")
+	outfiles = append([]string{cv}, outfiles...)
+
+	pcfg := coverPkgConfig{
+		PkgPath:   importPath,
+		PkgName:   pkgName,
+		Granularity: "perblock",
+		OutConfig: pkgcfg,
+		Local:     false,
+	}
+	data, err := json.Marshal(pcfg)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, '\n')
+	if err := os.WriteFile(pkgcfg, data, 0666); err != nil {
+		return nil, err
+	}
+	var sb strings.Builder
+	for i := range outfiles {
+		fmt.Fprintf(&sb, "%s\n", outfiles[i])
+	}
+	if err := os.WriteFile(covoutputs, []byte(sb.String()), 0666); err != nil {
+		return nil, err
+	}
+
+	goargs := goenv.goTool("cover", "-pkgcfg", pkgcfg, "-var", coverVar, "-mode", coverMode, "-outfilelist", covoutputs)
+	goargs = append(goargs, infiles...)
 	if err := goenv.runCommand(goargs); err != nil {
-		return err
+		return nil, err
 	}
-
-	return registerCoverage(outPath, coverVar, srcName)
+	return outfiles, nil
 }
 
-// registerCoverage modifies coverSrcFilename, the output file from go tool cover.
-// It adds a call to coverdata.RegisterCoverage, which ensures the coverage
-// data from each file is reported. The name by which the file is registered
-// need not match its original name (it may use the importpath).
-func registerCoverage(coverSrcFilename, varName, srcName string) error {
-	coverSrc, err := os.ReadFile(coverSrcFilename)
-	if err != nil {
-		return fmt.Errorf("instrumentForCoverage: reading instrumented source: %w", err)
-	}
-
-	// Parse the file.
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, coverSrcFilename, coverSrc, parser.ParseComments)
-	if err != nil {
-		return nil // parse error: proceed and let the compiler fail
-	}
-
-	// Perform edits using a byte buffer instead of the AST, because
-	// we can not use go/format to write the AST back out without
-	// changing line numbers.
-	editor := NewBuffer(coverSrc)
-
-	// Ensure coverdata is imported. Use an existing import if present
-	// or add a new one.
-	const coverdataPath = "github.com/bazelbuild/rules_go/go/tools/coverdata"
-	var coverdataName string
-	for _, imp := range f.Imports {
-		path, err := strconv.Unquote(imp.Path.Value)
-		if err != nil {
-			return nil // parse error: proceed and let the compiler fail
-		}
-		if path == coverdataPath {
-			if imp.Name != nil {
-				// renaming import
-				if imp.Name.Name == "_" {
-					// Change blank import to named import
-					editor.Replace(
-						fset.Position(imp.Name.Pos()).Offset,
-						fset.Position(imp.Name.End()).Offset,
-						"coverdata")
-					coverdataName = "coverdata"
-				} else {
-					coverdataName = imp.Name.Name
-				}
-			} else {
-				// default import
-				coverdataName = "coverdata"
-			}
-			break
-		}
-	}
-	if coverdataName == "" {
-		// No existing import. Add a new one.
-		coverdataName = "coverdata"
-		editor.Insert(fset.Position(f.Name.End()).Offset, fmt.Sprintf("; import %q", coverdataPath))
-	}
-
-	// Append an init function.
-	var buf = bytes.NewBuffer(editor.Bytes())
-	fmt.Fprintf(buf, `
-func init() {
-	%s.RegisterFile(%q,
-		%[3]s.Count[:],
-		%[3]s.Pos[:],
-		%[3]s.NumStmt[:])
+func writeFile(path string, data []byte) error {
+	return ioutil.WriteFile(path, data, 0666)
 }
-`, coverdataName, srcName, varName)
-	if err := ioutil.WriteFile(coverSrcFilename, buf.Bytes(), 0666); err != nil {
-		return fmt.Errorf("registerCoverage: %v", err)
-	}
-	return nil
+
+// coverPkgConfig matches https://cs.opensource.google/go/go/+/refs/tags/go1.24.4:src/cmd/internal/cov/covcmd/cmddefs.go;l=18
+type coverPkgConfig struct {
+	// File into which cmd/cover should emit summary info
+	// when instrumentation is complete.
+	OutConfig string
+
+	// Import path for the package being instrumented.
+	PkgPath string
+
+	// Package name.
+	PkgName string
+
+	// Instrumentation granularity: one of "perfunc" or "perblock" (default)
+	Granularity string
+
+	// Module path for this package (empty if no go.mod in use)
+	ModulePath string
+
+	// Local mode indicates we're doing a coverage build or test of a
+	// package selected via local import path, e.g. "./..." or
+	// "./foo/bar" as opposed to a non-relative import path. See the
+	// corresponding field in cmd/go's PackageInternal struct for more
+	// info.
+	Local bool
+
+	// EmitMetaFile if non-empty is the path to which the cover tool should
+	// directly emit a coverage meta-data file for the package, if the
+	// package has any functions in it. The go command will pass in a value
+	// here if we've been asked to run "go test -cover" on a package that
+	// doesn't have any *_test.go files.
+	EmitMetaFile string
 }
