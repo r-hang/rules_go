@@ -204,6 +204,7 @@ def emit_compilepkg(
         outputs = outputs,
         mnemonic = "GoCompilePkgExternal" if is_external_pkg else "GoCompilePkg",
         executable = go.toolchain._builder,
+        tools = [go.toolchain.sdk.go],
         arguments = ["compilepkg", shared_args, compile_args],
         env = env,
         toolchain = GO_TOOLCHAIN_LABEL,

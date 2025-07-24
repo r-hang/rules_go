@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 )
 
@@ -49,7 +50,10 @@ func stdlib(args []string) error {
 	if goroot == "" {
 		return fmt.Errorf("GOROOT not set")
 	}
-	output := abs(*out)
+	output, err := processPath(abs(*out))
+	if err != nil {
+		return err
+	}
 
 	// Fail fast if cgo is required but a toolchain is not configured.
 	if os.Getenv("CGO_ENABLED") == "1" && filepath.Base(os.Getenv("CC")) == "vc_installation_error.bat" {
@@ -57,13 +61,33 @@ func stdlib(args []string) error {
 You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	}
 
+	// Make sure we have an absolute path to the C compiler.
+	os.Setenv("CC", quotePathIfNeeded(abs(os.Getenv("CC"))))
+	os.Setenv("GOROOT", abs(goroot))
+
+	// Create a temporary cache directory. "go build" requires this starting
+	// in Go 1.12.
+	cachePath := filepath.Join(abs(goroot), ".gocache")
+	os.Setenv("GOCACHE", cachePath)
+	defer os.RemoveAll(cachePath)
+
 	// Link in the bare minimum needed to the new GOROOT
 	if err := replicate(goroot, output, replicatePaths("src", "pkg/tool", "pkg/include")); err != nil {
 		return err
 	}
 
-	output, err := processPath(output)
-	if err != nil {
+	// Go1.25 removes the pack tool from the Go SDK distribution so we need to build it ourselves
+	// and copy to the "pkg/tool" directory.
+	originalOS, originalARCH := os.Getenv("GOOS"), os.Getenv("GOARCH")
+	os.Setenv("GOOS", runtime.GOOS)
+	os.Setenv("GOARCH", runtime.GOARCH)
+	toolArgs := goenv.goCmd("build", "-pkgdir", "external/go_sdk", "cmd/pack")
+	if err := goenv.runCommand(toolArgs); err != nil {
+		return err
+	}
+	os.Setenv("GOOS", originalOS)
+	os.Setenv("GOARCH", originalARCH)
+	if err := moveFile("./pack", filepath.Join(output,"pkg/tool", runtime.GOOS + "_" + runtime.GOARCH, "pack")); err != nil {
 		return err
 	}
 
@@ -72,7 +96,7 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 
 	// Create a temporary cache directory. "go build" requires this starting
 	// in Go 1.12.
-	cachePath := filepath.Join(output, ".gocache")
+	cachePath = filepath.Join(output, ".gocache")
 	os.Setenv("GOCACHE", cachePath)
 	defer os.RemoveAll(cachePath)
 
@@ -169,6 +193,13 @@ You may need to use the flags --cpu=x64_windows --compiler=mingw-gcc.`)
 	installArgs = append(installArgs, packages...)
 	if err := goenv.runCommand(installArgs); err != nil {
 		return err
+	}
+	return nil
+}
+
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err != nil {
+		return fmt.Errorf("move file from %s to %s: %w", src, dst, err)
 	}
 	return nil
 }
