@@ -55,6 +55,13 @@ GoSDK = provider(
 
 GoStdLib = provider()
 
+GoPackTool = provider(
+    doc = "Contains the pack tool built for the execution platform",
+    fields = {
+        "pack": "The pack executable file",
+    },
+)
+
 GoConfigInfo = provider()
 
 GoContextInfo = provider()

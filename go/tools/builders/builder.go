@@ -65,6 +65,8 @@ func main() {
 		action = stdlib
 	case "stdliblist":
 		action = stdliblist
+	case "packtool":
+		action = packTool
 	case "cc":
 		action = cc
 	default:

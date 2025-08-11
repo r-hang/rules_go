@@ -18,7 +18,7 @@ Toolchain rules used by go.
 load("@bazel_skylib//lib:selects.bzl", "selects")
 load("//go/private:common.bzl", "GO_TOOLCHAIN")
 load("//go/private:platforms.bzl", "PLATFORMS")
-load("//go/private:providers.bzl", "GoSDK")
+load("//go/private:providers.bzl", "GoSDK", "GoPackTool")
 load("//go/private/actions:archive.bzl", "emit_archive")
 load("//go/private/actions:binary.bzl", "emit_binary")
 load("//go/private/actions:link.bzl", "emit_link")
@@ -27,6 +27,7 @@ load("//go/private/actions:stdlib.bzl", "emit_stdlib")
 def _go_toolchain_impl(ctx):
     sdk = ctx.attr.sdk[GoSDK]
     cross_compile = ctx.attr.goos != sdk.goos or ctx.attr.goarch != sdk.goarch
+    pack_tool = ctx.attr.pack_tool[GoPackTool] if ctx.attr.pack_tool else None
     return [
         ctx.attr.sdk[DefaultInfo],
         platform_common.ToolchainInfo(
@@ -47,6 +48,7 @@ def _go_toolchain_impl(ctx):
                 link_cgo = ctx.attr.cgo_link_flags,
             ),
             sdk = sdk,
+            pack_tool = pack_tool,
 
             # Internal fields -- may be read by emit functions.
             _builder = ctx.executable.builder,
@@ -77,6 +79,11 @@ go_toolchain = rule(
             cfg = "exec",
             doc = "The SDK this toolchain is based on",
         ),
+        "pack_tool": attr.label(
+            providers = [GoPackTool],
+            cfg = "exec",
+            doc = "The pack tool built for the execution platform",
+        ),
         # Optional extras to a toolchain
         "link_flags": attr.string_list(
             doc = "Flags passed to the Go internal linker",
@@ -89,7 +96,7 @@ go_toolchain = rule(
     provides = [platform_common.ToolchainInfo],
 )
 
-def declare_go_toolchains(host_goos, sdk, builder):
+def declare_go_toolchains(host_goos, sdk, builder, pack_tool = None):
     """Declares go_toolchain targets for each platform."""
     for p in PLATFORMS:
         if p.cgo:
@@ -111,6 +118,7 @@ def declare_go_toolchains(host_goos, sdk, builder):
             goarch = p.goarch,
             sdk = sdk,
             builder = builder,
+            pack_tool = pack_tool,
             link_flags = link_flags,
             cgo_link_flags = cgo_link_flags,
             tags = ["manual"],

@@ -197,10 +197,15 @@ def emit_compilepkg(
         compile_args.add("-pgoprofile", go.mode.pgoprofile)
         inputs_direct.append(go.mode.pgoprofile)
 
+    tools = [go.toolchain.sdk.go]
+    if go.toolchain.pack_tool:
+        tools.append(go.toolchain.pack_tool.pack)
+        compile_args.add("-pack_tool", go.toolchain.pack_tool.pack)
+
     go.actions.run(
         inputs = depset(inputs_direct, transitive = inputs_transitive),
         outputs = outputs,
-        tools = [go.toolchain.sdk.go],
+        tools = tools,
         mnemonic = "GoCompilePkgExternal" if is_external_pkg else "GoCompilePkg",
         executable = go.toolchain._builder,
         arguments = ["compilepkg", shared_args, compile_args],

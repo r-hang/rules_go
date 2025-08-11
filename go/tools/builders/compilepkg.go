@@ -45,6 +45,7 @@ func compilePkg(args []string) error {
 	var gcFlags, asmFlags, cppFlags, cFlags, cxxFlags, objcFlags, objcxxFlags, ldFlags quoteMultiFlag
 	var coverFormat string
 	var pgoprofile string
+	var packTool string
 	fs.Var(&unfilteredSrcs, "src", ".go, .c, .cc, .m, .mm, .s, or .S file to be filtered and compiled")
 	fs.Var(&coverSrcs, "cover", ".go file that should be instrumented for coverage (must also be a -src)")
 	fs.Var(&embedSrcs, "embedsrc", "file that may be compiled into the package with a //go:embed directive")
@@ -71,6 +72,7 @@ func compilePkg(args []string) error {
 	fs.StringVar(&coverFormat, "cover_format", "", "Emit source file paths in coverage instrumentation suitable for the specified coverage format")
 	fs.Var(&recompileInternalDeps, "recompile_internal_deps", "The import path of the direct dependencies that needs to be recompiled.")
 	fs.StringVar(&pgoprofile, "pgoprofile", "", "The pprof profile to consider for profile guided optimization.")
+	fs.StringVar(&packTool, "pack_tool", "", "Path to the pack tool binary")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -132,7 +134,8 @@ func compilePkg(args []string) error {
 		cgoGoSrcsPath,
 		coverFormat,
 		recompileInternalDeps,
-		pgoprofile)
+		pgoprofile,
+		packTool)
 }
 
 func compileArchive(
@@ -164,6 +167,7 @@ func compileArchive(
 	coverFormat string,
 	recompileInternalDeps []string,
 	pgoprofile string,
+	packTool string,
 ) error {
 	workDir, cleanup, err := goenv.workDir()
 	if err != nil {
@@ -456,7 +460,7 @@ func compileArchive(
 	// Pack .o and .syso files into the archive. These may come from cgo generated code,
 	// cgo dependencies (cdeps), windows resource file generation, or assembly.
 	if len(objFiles) > 0 {
-		if err := appendToArchive(goenv, outLinkObj, objFiles); err != nil {
+		if err := appendToArchive(goenv, outLinkObj, objFiles, packTool); err != nil {
 			return err
 		}
 	}
@@ -531,12 +535,22 @@ func compileGo(goenv *env, srcs []string, packagePath, importcfgPath, embedcfgPa
 	return goenv.runCommand(args)
 }
 
-func appendToArchive(goenv *env, outPath string, objFiles []string) error {
+func appendToArchive(goenv *env, outPath string, objFiles []string, packTool string) error {
 	// Use abs to work around long path issues on Windows.
+	
+	// Use provided pack tool if available
+	if packTool != "" {
+		args := []string{packTool, "r", abs(outPath)}
+		args = append(args, objFiles...)
+		return goenv.runCommand(args)
+	}
+	
+	// Fall back to go tool pack
 	args := goenv.goCmd("tool", "pack", "r", abs(outPath))
 	args = append(args, objFiles...)
 	return goenv.runCommand(args)
 }
+
 
 func createTrimPath(gcFlags []string, path string) string {
 	for _, flag := range gcFlags {

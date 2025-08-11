@@ -2,6 +2,7 @@ load("@io_bazel_rules_go//go:def.bzl", "go_sdk")
 load("@io_bazel_rules_go//go/private:common.bzl", "RULES_GO_STDLIB_PREFIX")
 load("@io_bazel_rules_go//go/private:go_toolchain.bzl", "declare_go_toolchains")
 load("@io_bazel_rules_go//go/private/rules:binary.bzl", "go_tool_binary")
+load("@io_bazel_rules_go//go/private/rules:pack_tool.bzl", "go_pack_tool")
 load("@io_bazel_rules_go//go/private/rules:sdk.bzl", "package_list")
 load("@io_bazel_rules_go//go/private/rules:transition.bzl", "non_go_reset_target")
 
@@ -87,6 +88,10 @@ non_go_reset_target(
     dep = ":builder",
 )
 
+go_pack_tool(
+    name = "pack_tool",
+)
+
 # TODO(jayconrod): Gazelle depends on this file directly. This dependency
 # should be broken, and this rule should be folded into go_sdk.
 package_list(
@@ -99,6 +104,7 @@ package_list(
 declare_go_toolchains(
     builder = ":builder_reset",
     host_goos = "{goos}",
+    pack_tool = ":pack_tool",
     sdk = ":go_sdk",
 )
 
